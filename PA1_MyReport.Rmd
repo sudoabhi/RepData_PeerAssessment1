@@ -1,0 +1,194 @@
+---
+title: "PA1_MyReport.Rmd"
+author: "sudoabhi"
+date: "15/07/2020"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = F)
+```
+
+## Reproducible Research Course Project 1
+
+This is an HTML file created from a R Markdown file using the knitr library.
+It shows the results of the analysis performed by me.
+Please take a look at it and comment what you think.
+
+### 1.) Loading and preprocessing the data
+
+```{r load}
+library(dplyr)
+url<-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+#download.file(url,"Data.zip")
+#unzip("Data.zip")
+
+data<-read.csv("activity.csv")
+
+data$date<-as.Date(as.character(data$date), format="%Y-%m-%d")
+head(data)
+
+```
+
+
+### 2.) What is mean total number of steps taken per day?
+
+#### Lets first calculate the total number of steps per day
+```{r q1}
+data2<-group_by(data,date)
+#Total number of steps per day :-
+data21<-summarise(data2,steps=sum(steps,na.rm = T))
+head(data21)
+
+```
+
+#### Now lets make a histogram for the calculated sum above
+```{r}
+
+#Histogram for the total num of steps per day :-
+hist(data21$steps,main="Histogram of steps",xlab = "Steps Taken Per Day",col = "Red",
+     ylim = c(0,20), breaks = seq(0,25000, by=2500))
+
+```
+
+#### The Mean and Median and other details of the total number of steps taken per day for the above 
+```{r}
+
+summary(data21$steps)
+mean<-summary(data21$steps)[4]
+median<-summary(data21$steps)[3]
+
+```
+
+So the mean is `r mean` and the median is `r median` .
+
+### 3.) What is the average daily activity pattern
+
+#### Lets first calculate the mean of the number of steps taken
+```{r q2}
+
+data3<-group_by(data,interval)
+data31<-summarise(data3,means=mean(steps,na.rm = T))
+head(data31)
+
+```
+
+#### Lets Make a time series plot 
+```{r}
+
+with(data31,plot(interval,means,type = "l",ylab = "Avg Num of Steps",xlab = "5-Minute Interval"))
+title(main="Time series plot of avg steps")
+
+```
+
+#### Which 5-minute interval, on average across all the days, contains the maximum number of steps
+```{r}
+
+filter(data31,data31$means==max(data31$means))$interval
+
+```
+
+
+### 4.) Imputing missing values
+
+#### Calculate and report the total number of missing values in the dataset 
+```{r q4}
+
+steps_na<-sapply(data$steps,is.na)
+sum(steps_na)
+
+```
+
+#### Devise a strategy for filling in all of the missing values in the dataset
+```{r}
+
+#I will replace with means of 5-minute intervals
+to_replace<-match(data$interval,data31$interval)
+means<-data31$means[to_replace]
+
+```
+
+#### Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r}
+#New dataset
+data4<-mutate(data, steps = ifelse(steps_na, yes = means, no = data$steps))
+head(data4)
+
+```
+
+#### Make a histogram of the total number of steps taken each day
+```{r}
+# First i calculate the sum of steps taken per day of the new dataset 
+data41<-group_by(data4,date)
+data42<-summarise(data41,steps=sum(steps,na.rm = T))
+
+# now i plot the histogram
+hist(data42$steps,main="Histogram of steps",xlab = "Steps Taken Per Day",col = "Blue",
+     ylim = c(0,30), breaks = seq(0,25000, by=2500))
+
+```
+
+#### Claculating mean and median total number of steps taken per day
+```{r new_data}
+
+summary(data42$steps)
+new_mean<-summary(data42$steps)[4]
+new_median<-summary(data42$steps)[3]
+
+```
+
+So the mean is `r new_mean` and the median is `r new_median` .
+
+#### Impact of imputing missing data on the estimates of the total daily number of steps
+
+Imputing missing data have only a little and transcurable impact on the mean ant the median of the total daily number of steps. Watching the histogram we can note than the only bin that is changed is the interval between 10000 and 12500 steps, grown from a frequency of 18 to a frequency of 26. Different methods for replace missing values could cause different results.
+Lets take a look at this difference by plotting their histograms.
+
+```{r}
+
+par(mfrow=c(1,2),oma=c(0,0,2,0))
+hist(data21$steps,main="Before Imputing Data",xlab = "Steps Taken Per Day",col = "Red",
+     ylim = c(0,30), breaks = seq(0,25000, by=2500))
+hist(data42$steps,main="After Imputing Data",xlab = "Steps Taken Per Day",col = "Blue",
+     ylim = c(0,30), breaks = seq(0,25000, by=2500))
+title("Histogram of steps", outer = TRUE)
+par(mfrow=c(1,1),oma=c(0,0,0,0))
+
+```
+
+
+### 5.) Are there differences in activity patterns between weekdays and weekends?
+
+#### Create a new factor variable in the dataset with two levels – “weekday” and “weekend”
+
+```{r}
+#Finding the days of the given dates
+weekday<-weekdays(data4$date)
+#converting them to "weekday" and "weekend" using logic comparison
+weekday<-ifelse(weekday=="Saturday"|weekday=="Sunday",yes="weekend",no="weekday")
+#creating a factor variable
+weekday<-as.factor(weekday)
+#adding this new factor variable to the previous imputed dataset
+data4<-mutate(data4,daytype=weekday)
+head(data4)
+
+```
+
+#### Make a panel plot containing a time series plot
+
+```{r}
+#Grouping and finding the mean steps taken averaged across per day 
+data43<-group_by(data4,interval,daytype)
+data44<-summarise(data43,means=mean(steps,na.rm = T))
+
+#using ggplot2 library for the panel plot
+library(ggplot2)
+g<-ggplot(data44,aes(interval,means,color=daytype)) + geom_line()+ scale_color_manual(values = c("red","blue")) +
+    facet_grid(daytype ~ .)+
+    xlab("Interval")+ylab("Average Number of steps")
+print(g)
+
+```
+
